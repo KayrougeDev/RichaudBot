@@ -1,0 +1,25 @@
+[package]
+name = "richaudbot"
+version = "0.1.0"
+edition = "2024"
+description = "Petit bot chill du goat Richaud"
+
+[dependencies]
+clap = { version = "4.6.0", features = ["derive"] }
+ctrlc = "3.5.2"
+dotenvy = "0.15.7"
+humantime = "2.3.0"
+image = "0.25.10"
+poise = { version = "0.6.1" }
+tokio = { version = "1.51.0", features = ["rt-multi-thread"], default-features = false }
+tokio-util = { version = "0.7.18", features = ["futures-util"], default-features = false }
+tray-icon = "0.22.0"
+windows-sys = { version = "0.61.2", features = ["Win32_UI_WindowsAndMessaging"], default-features = false }
+
+[profile.release]
+lto = true
+codegen-units = 1
+panic = "abort"
+
+[profile.dev]
+debug = 0
