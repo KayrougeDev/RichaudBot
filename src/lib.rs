@@ -2,23 +2,29 @@ use std::env;
 
 use clap::Parser;
 
-use poise::{command, serenity_prelude::{self as serenity}};
+use poise::{command, serenity_prelude::{self as serenity, futures::lock::Mutex}};
 use tokio_util::sync::CancellationToken;
 use windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS;
 use windows_sys::Win32::System::Console::AttachConsole;
 
 mod commands;
 
-use crate::{commands::{carriere, echo, info, ping}};
+use crate::commands::{get_commands};
 
 
 pub struct Data {
-    pub stats: Stats
+    pub stats: Stats,
+    pub stop_tokens: StopTokens
 } 
 
 pub struct Stats {
     pub startup_time: std::time::Instant,
     pub bot_version: String,
+}
+
+pub struct StopTokens {
+    pub program_stop_token: CancellationToken,
+    pub all_subtask_stop: Mutex<CancellationToken>
 }
 
 pub type Error = Box<dyn std::error::Error + Send + Sync>;
@@ -32,10 +38,11 @@ pub struct Args {
     update: Option<String>,
 }
 
-pub async fn start_bot(args: Args, token: CancellationToken) {
+pub async fn start_bot(args: Args, stop_token: CancellationToken) {
+    let framework_stop_token = stop_token.clone();
     let framework = poise::Framework::builder()
         .options(poise::FrameworkOptions {
-            commands: vec![ping(), echo(), info(), carriere()],
+            commands: get_commands(),
             ..Default::default()
         })
         .setup(move |ctx, _ready, framework| {
@@ -73,6 +80,8 @@ pub async fn start_bot(args: Args, token: CancellationToken) {
                         println!("Not updated !")
                     }
                 }
+
+                println!("All set ! Richaud is ready.");
                 
                 Ok(
                     Data {
@@ -80,7 +89,10 @@ pub async fn start_bot(args: Args, token: CancellationToken) {
                             startup_time: std::time::Instant::now(),
                             bot_version: env!("CARGO_PKG_VERSION").to_string()
                         },
-
+                        stop_tokens: StopTokens { 
+                            program_stop_token: framework_stop_token,
+                            all_subtask_stop: Mutex::new(CancellationToken::new())
+                        }
                     }
                 )
             })
@@ -99,15 +111,15 @@ pub async fn start_bot(args: Args, token: CancellationToken) {
 
     let shard_manager = client.shard_manager.clone();
 
-    println!("Started Richaud in background...");
+    println!("Starting Richaud...");
     let bot_future = client.start();
 
 
     tokio::select! {
         _ = bot_future => {
-            println!("Richaud retired");
+            println!("Richaud stopped on his own");
         },
-        _ = token.cancelled() => {
+        _ = stop_token.cancelled() => {
             println!("Stopping signal received ! shuting down...");
             shard_manager.shutdown_all().await;
             println!("Shutdowned all shards, Goodbye !");
@@ -120,7 +132,7 @@ pub fn try_attach_console() {
     unsafe {
         if AttachConsole(ATTACH_PARENT_PROCESS) != 0 {
             let _ = std::io::stdout().lock();
-            println!("\nConnecting to the console");
+            println!("\nConnected to the console");
         }
     }
 }

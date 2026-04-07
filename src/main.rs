@@ -1,4 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+use std::time::{Duration, Instant};
+
 use clap::Parser;
 use dotenvy::dotenv;
 
@@ -20,27 +23,26 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     let _tray_icon = setup_tray();
 
-    let rt = Runtime::new()?; 
+    let rt = Runtime::new()?;
 
-    let cancel_token = CancellationToken::new();
+    let stop_bot_token = CancellationToken::new();
 
-    let bot_token = cancel_token.clone();
+    let task_stop_token = stop_bot_token.clone();
 
-    let ctrlc_token = cancel_token.clone();
+    let ctrlc_stop_token = stop_bot_token.clone();
 
     ctrlc::set_handler(move || {
-        ctrlc_token.cancel();
+        ctrlc_stop_token.cancel();
     }).expect("Error with Ctrl+C handler setup");
 
-    rt.spawn(async move {
-        println!("Starting Richaud in background...");
-        start_bot(args, bot_token).await;
+    let handle = rt.spawn(async move {
+        start_bot(args, task_stop_token).await;
     });
 
     let menu_channel = MenuEvent::receiver();
     
     loop {
-        if cancel_token.is_cancelled() {
+        if stop_bot_token.is_cancelled() {
             break;
         }
         #[cfg(target_os = "windows")]
@@ -57,15 +59,24 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         if let Ok(event) = menu_channel.try_recv() {
             if event.id == MenuId::from(1000) {
-                cancel_token.cancel();
-                break;
+                stop_bot_token.cancel();
             }
         }
 
         std::thread::sleep(std::time::Duration::from_millis(16));
     }
 
-    rt.shutdown_timeout(std::time::Duration::from_secs(3));
+    let start = Instant::now();
+    let timeout_duration = Duration::from_secs(3);
+
+    while !handle.is_finished() {
+        if start.elapsed() >= timeout_duration {
+            println!("Trop long ! On force l'arrêt.");
+            handle.abort();
+            break;
+        }
+        std::thread::sleep(Duration::from_millis(100));
+    }
 
     Ok(())
 }
