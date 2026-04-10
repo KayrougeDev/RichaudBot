@@ -5,8 +5,8 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{Context, Data, Error};
 
-pub fn get_commands() -> Vec<poise::Command<Data, Box<(dyn std::error::Error + std::marker::Send + Sync + 'static)>>>{
-    vec![ping(), echo(), info(), carriere(), spam(), stopalltasks(), retreat()]
+pub fn get_commands() -> Vec<poise::Command<Data, Box<dyn std::error::Error + std::marker::Send + Sync + 'static>>>{
+    vec![ping(), echo(), info(), carriere(), spam(), stopalltasks(), retreat(), op()]
 }
 
 #[poise::command(slash_command)]
@@ -166,6 +166,44 @@ pub async fn retreat(ctx: Context<'_>, #[description = "Temps de vie restant"] t
     }
 
     ctx.data().stop_tokens.program_stop_token.cancel();
+
+    Ok(())
+}
+
+#[poise::command(slash_command, guild_only)]
+pub async fn op(ctx: Context<'_>, role: serenity::Role, user: Option<serenity::Member>) -> Result<(), Error>  {
+
+    let member: serenity::Member = match user {
+        Some(m) => m,
+        None => {
+            ctx.author_member()
+                .await
+                .expect("Not a guild")
+                .into_owned()
+        }
+    };
+
+    let add = member.add_role(&ctx.http(), role.id).await;
+    match add {
+        Ok(_) => {
+            ctx.send(
+                poise::CreateReply::default()
+                    .content("Succes !")
+                    .reply(false)
+                    .ephemeral(true)
+            ).await?;
+            println!("Given {role} to {member}");
+        }
+        Err(e) => {
+            ctx.send(
+                poise::CreateReply::default()
+                    .content(format!("Fail ! {e}"))
+                    .reply(false)
+                    .ephemeral(true)
+            ).await?;
+        }
+    }
+
 
     Ok(())
 }

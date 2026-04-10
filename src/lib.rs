@@ -2,7 +2,7 @@ use std::env;
 
 use clap::Parser;
 
-use poise::{command, serenity_prelude::{self as serenity, futures::lock::Mutex}};
+use poise::{serenity_prelude::{self as serenity, futures::lock::Mutex}};
 use tokio_util::sync::CancellationToken;
 use windows_sys::Win32::System::Console::ATTACH_PARENT_PROCESS;
 use windows_sys::Win32::System::Console::AttachConsole;
@@ -34,7 +34,7 @@ pub type Context<'a> = poise::Context<'a, Data, Error>;
 #[derive(Parser)]
 #[command(author, version, about)]
 pub struct Args {
-    #[arg(short, long, default_value = None, default_missing_value = "__all__", require_equals = false, num_args(0..=1), )]
+    #[arg(short, long, default_value = None, default_missing_value = "all", require_equals = false, num_args(0..=1), )]
     update: Option<String>,
 }
 
@@ -49,7 +49,7 @@ pub async fn start_bot(args: Args, stop_token: CancellationToken) {
             Box::pin(async move {
 
                 match args.update {
-                    Some(mode) if mode == "__all__" => {
+                    Some(mode) if mode == "all" => {
                         poise::builtins::register_globally(ctx, &framework.options().commands).await?;
                         println!("Updated globally !");
                     },
@@ -102,7 +102,7 @@ pub async fn start_bot(args: Args, stop_token: CancellationToken) {
     let bot_token = env::var("BOT_TOKEN")
         .expect("No BOT_TOKEN in .env");
 
-    let intents = serenity::GatewayIntents::non_privileged();
+    let intents = serenity::GatewayIntents::all();
 
     let mut client = serenity::ClientBuilder::new(bot_token, intents)
         .framework(framework)
